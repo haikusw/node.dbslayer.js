@@ -1,4 +1,4 @@
-//  dbslayer.js 1.0d2
+//  dbslayer.js 1.0d3
 //      Copyright (c) 2010 Jonathan 'Wolf' Rentzsch: <http://rentzsch.com>
 //      Some rights reserved: <http://opensource.org/licenses/mit-license.php>
 //      
@@ -7,6 +7,10 @@
 
 var sys = require('sys'),
 	http = require('http');
+
+var logSQL = process.env['DBSLAYER_LOGSQL']
+	? function(sql){console.log(sql);}
+	: function(sql){/*no-op*/};
 
 function DBSlayerConnection(opts) {
 	this.host = opts['host'] || 'localhost';
@@ -28,7 +32,7 @@ DBSlayerConnection.prototype.executeQuery = function(args) {
 	
 	if (opt.select) {
 		placeholderArgs = Array.prototype.slice.call(args, 1, -1);
-		this.executeSelect(opt.select, opt.from, opt.where, placeholderArgs, callback);
+		this.executeSelect(opt.select, opt.from, opt.where, opt.order_by, placeholderArgs, callback);
 	} else if (opt.insert_into) {
 		this.executeInsert(opt.insert_into, opt.values, callback);
 	} else if (opt.update) {
@@ -41,7 +45,7 @@ DBSlayerConnection.prototype.executeQuery = function(args) {
 	}
 }
 
-DBSlayerConnection.prototype.executeSelect = function(columns, tables, condition, placeholderArgs, callback) {
+DBSlayerConnection.prototype.executeSelect = function(columns, tables, condition, ordering, placeholderArgs, callback) {
 	var generatedQuery = this.db ? 'use ' + this.db + ';' : '';
 	
 	generatedQuery += 'select ' + columns + ' from ' + tables;
@@ -53,10 +57,13 @@ DBSlayerConnection.prototype.executeSelect = function(columns, tables, condition
 		}
 		generatedQuery += ' where ' + condition;
 	}
+	if (ordering) {
+		generatedQuery += ' order by ' + ordering;
+	}
 	
 	generatedQuery += ';';
 	
-	//sys.log('^^select generatedQuery: '+generatedQuery);
+	logSQL(generatedQuery);
 	this.fetch(generatedQuery, callback);
 }
 
@@ -81,7 +88,7 @@ DBSlayerConnection.prototype.executeInsert = function(insert_into, values, callb
 		+ rowValues.join(', ')
 		+ ');';
 	
-	//sys.log('^^insert generatedQuery: '+generatedQuery);
+	logSQL(generatedQuery);
 	this.fetch(generatedQuery, typeof callback === 'function' ? callback : function(){});
 }
 
@@ -110,7 +117,7 @@ DBSlayerConnection.prototype.executeUpdate = function(update_table, values, cond
 		+ setFragments.join(', ')
 		+ conditionFragment + ";";
 	
-	//sys.log('^^update generatedQuery: '+generatedQuery);
+	logSQL(generatedQuery);
 	this.fetch(generatedQuery,
 		typeof callback === 'function' ? callback : function(){});
 }
