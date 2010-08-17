@@ -130,7 +130,7 @@ function addslashes(str) {
 DBSlayerConnection.prototype.fetch = function(queryString, callback) {
 	var queryRecord = {SQL:queryString},
 		queryJSON = JSON.stringify(queryRecord),
-		escapedQueryJSON = escape(queryJSON.replace(/ /g,"+")),
+		escapedQueryJSON = escape(queryJSON).replace('+','%2B'),
 		connection = http.createClient(this.port, this.host),
 		request = connection.request('/db?' + escapedQueryJSON),
 		dbconnection = this;
@@ -166,12 +166,10 @@ DBSlayerConnection.prototype.fetch = function(queryString, callback) {
 			} else if (object.ERROR !== undefined){
 				callback(undefined, object);
 			} else {
-				//sys.log('^^data: '+data);
-				dbconnection.callBackWithResults(
-					callback,
-					object.RESULT[1].HEADER,
-					object.RESULT[1].ROWS
-				);
+				//console.log(data);
+				var headers = object.RESULT.length ? object.RESULT[1].HEADER : undefined,
+					rows = object.RESULT.length ? object.RESULT[1].ROWS : undefined;
+				dbconnection.callBackWithResults(callback, headers, rows);
 			}          
 		});
 	});
@@ -194,13 +192,26 @@ DBSlayerConnection.prototype.callBackWithResults = function(callback, headers, r
 	callback(resultRows);
 }
 
+function DBSlayerRawSQLString(rawSQL) {
+	this.rawSQL = rawSQL;
+}
+
+//--
+
 exports.connect = function(opts) {
 	var connection = new DBSlayerConnection(opts),
 		result = function(){connection.executeQuery(arguments);};
 	
 	return result;
 }
+
 exports.DBSlayerConnection = DBSlayerConnection;
+
+exports.rawSQL = function(rawSQL) {
+	return new DBSlayerRawSQLString(rawSQL);
+};
+
+//--
 
 function sqlstr(x) {
 	switch (typeof x) {
@@ -225,6 +236,8 @@ function sqlstr(x) {
 					+':'
 					+x.getSeconds()
 					+"'"
+			} else if (x instanceof DBSlayerRawSQLString) {
+				return x.rawSQL;
 			} else {
 				throw Error('sqlstr: unsupported type "object"');
 			}
